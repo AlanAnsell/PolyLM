@@ -45,27 +45,51 @@ class PolyLMModel():
                 attention_probs_dropout_prob=options.dropout,
                 max_position_embeddings=self._max_seq_len)
 
+        self._unmasked_seqs = tf.placeholder(tf.int32, [None, None])
         self._masked_seqs = tf.placeholder(tf.int32, [None, None])
         self._padding = tf.placeholder(tf.int32, [None, None])
         self._targets = tf.placeholder(tf.int32, [None])
-        self._target_indices = tf.placeholder(tf.int32, [None, 2])
+        self._target_positions = tf.placeholder(tf.int32, [None])
         self._dl_r = tf.placeholder(tf.float32, [])
         self._ml_coeff = tf.placeholder(tf.float32, [])
 
-        self._unmasked_seqs = tf.tensor_scatter_nd_update(
-                self._masked_seqs, self._target_indices,
-                self._targets)
+        self._total_senses = np.sum(n_senses) + 1
+        sense_indices = np.zeros(
+                [self._vocab.size, self._max_senses], dtype=np.int32)
+        sense_to_token = np.zeros(
+                [self._total_senses], dtype=np.int32)
+        sense_to_sense_num = np.zeros(
+                [self._total_senses], dtype=np.int32)
+        sense_mask = np.zeros(
+                [self._vocab.size, self._max_senses], dtype=np.float32)
+        is_multisense = np.zeros([self._vocab.size], dtype=np.float32)
+        index = 1
+        for i, n in enumerate(n_senses):
+            if n > 1:
+                is_multisense[i] = 1.0
+            for j in range(n):
+                sense_indices[i, j] = index
+                sense_mask[i, j] = 1.0
+                sense_to_token[index] = i
+                sense_to_sense_num[index] = j
+                index += 1
+        self._sense_indices = tf.constant(sense_indices)
+        self._sense_mask = tf.constant(sense_mask)
+        self._is_multisense = tf.constant(is_multisense)
+        self._n_senses = tf.constant(n_senses)
+        self._sense_to_token = tf.constant(sense_to_token)
+        self._sense_to_sense_num = tf.constant(sense_to_sense_num)
 
         embedding_initializer = tf.random_normal_initializer(
                 0.0, 1.0 / np.sqrt(self._embedding_size))
-        self._embedding_tensor = tf.get_variable(
+        self._embeddings = tf.get_variable(
                 'embeddings',
-                [self._vocab.size, self._max_senses, self._embedding_size],
+                [self._total_senses, self._embedding_size],
                 dtype=tf.float32,
                 initializer=embedding_initializer)
-        self._bias_matrix = tf.get_variable(
-                'embedding_bias',
-                shape=[self._vocab.size, self._max_senses],
+        self._biases = tf.get_variable(
+                'biases',
+                shape=[self._total_senses-1],
                 dtype=tf.float32,
                 initializer=tf.zeros_initializer())
         self._sense_weight_logits = tf.get_variable(
@@ -73,113 +97,76 @@ class PolyLMModel():
                 [self._vocab.size, self._max_senses],
                 dtype=np.float32,
                 initializer=tf.zeros_initializer())
-        self._n_senses = tf.constant(n_senses)
-        self._is_multisense = tf.cast(
-                tf.greater(self._n_senses, 1), tf.float32)
-
-        sense_mask = np.zeros(
-                [self._vocab.size, self._max_senses], dtype=np.float32)
-        for t in range(self._vocab.size):
-            sense_mask[t, :n_senses[t]] = 1.0
-        self._sense_mask = tf.constant(sense_mask)
-
-        self._total_senses = np.sum(n_senses)
-        _2d_to_1d_indices = self._total_senses * np.ones(
-                [self._vocab.size, self._max_senses], dtype=np.int32)
-        sense_count = 0
-        for i in range(self._vocab.size):
-            for j in range(n_senses[i]):
-                _2d_to_1d_indices[i, j] = sense_count
-                sense_count += 1
 
         no_predict_tokens = [
                 self._vocab.bos_vocab_id, self._vocab.eos_vocab_id,
                 self._vocab.pad_vocab_id, self._vocab.mask_vocab_id]
-        self._unpredictable_tokens = np.zeros(
+        unpredictable_tokens = np.zeros(
                 [self._total_senses], dtype=np.float32)
         for t in no_predict_tokens:
-            idx_1d = _2d_to_1d_indices[t, 0]
-            self._unpredictable_tokens[idx_1d] = 1.0
+            unpredictable_tokens[sense_indices[t, 0]] = 1.0
         self._unpredictable_tokens = tf.constant(
-                self._unpredictable_tokens)
-
-        self._total_senses = tf.constant(self._total_senses)
-        # (vocab.size, max_senses)
-        self._2d_to_1d_indices = tf.constant(_2d_to_1d_indices)
-        rows = tf.tile(
-                tf.expand_dims(tf.range(self._vocab.size), axis=1),
-                [1, self._max_senses])
-        columns = tf.tile(
-                tf.expand_dims(tf.range(self._max_senses), axis=0),
-                [self._vocab.size, 1])
-        indices = tf.stack([rows, columns], axis=2)
-        self._1d_to_2d_indices = tf.scatter_nd(
-                tf.expand_dims(self._2d_to_1d_indices, axis=-1),
-                indices,
-                [self._total_senses + 1, 2])
-        self._1d_to_2d_indices = self._1d_to_2d_indices[:-1, :]
-
-        # (total_senses, embedding_size)
-        self._embedding_matrix = tf.gather_nd(
-                self._embedding_tensor, self._1d_to_2d_indices)
-        # (total_senses)
-        self._bias_vector = tf.gather_nd(
-                self._bias_matrix, self._1d_to_2d_indices)
-        # (n_targets, max_senses)
-        self._1d_target_senses = tf.nn.embedding_lookup(
-                self._2d_to_1d_indices, self._targets)
+                unpredictable_tokens)
 
         mean_prob = sense_mask / np.sum(
                 sense_mask, axis=1, keepdims=True)
         self._mean_qp = tf.get_variable(
-                'mean_prediction_sense_probs',
+                'mean_qp',
                 [self._vocab.size, self._max_senses],
                 initializer=tf.constant_initializer(mean_prob),
                 trainable=False)
         self._mean_qd = tf.get_variable(
-                'mean_disambiguation_sense_probs',
+                'mean_qd',
                 [self._vocab.size, self._max_senses],
                 initializer=tf.constant_initializer(mean_prob),
                 trainable=False)
 
-        if self._max_senses == 1:
-            self._disambiguated_reps = tf.squeeze(tf.nn.embedding_lookup(
-                    self._embedding_tensor, self._masked_seqs), [2])
-        elif options.use_disambiguation_layer:
+        if options.use_disambiguation_layer:
             self._disambiguated_reps, _ = self._disambiguation_layer(
                     self._masked_seqs)
             _, self._qd = self._disambiguation_layer(
                     self._unmasked_seqs)
-            self._qd = tf.gather_nd(self._qd, self._target_indices)
+            self._qd = tf.reshape(self._qd, [-1, self._max_senses])
+            self._qd = tf.nn.embedding_lookup(
+                    self._qd, self._target_positions)
         else:
-            self._disambiguated_reps = self._get_single_sense_embeddings(
-                    self._masked_seqs)
+            pass
+            #self._disambiguated_reps = self._get_single_sense_embeddings(
+            #        self._masked_seqs)
         self._output_reps = self._prediction_layer(self._disambiguated_reps)
         
+        flattened_reps = tf.reshape(
+                self._output_reps, [-1, self._embedding_size])
+        
         # (n_targets, embedding_size)
-        self._target_reps = tf.gather_nd(
-                self._output_reps, self._target_indices)
-
+        target_position_reps = tf.nn.embedding_lookup(
+                flattened_reps, self._target_positions)
+        biases_with_dummy = tf.concat(
+                [tf.constant([-1e30]), self._biases], axis=0)
         # (n_targets, total_senses)
-        target_scores = (
-                tf.matmul(self._target_reps,
-                          self._embedding_matrix,
+        target_position_scores = (
+                tf.matmul(target_position_reps,
+                          self._embeddings,
                           transpose_b=True) +
-                self._bias_vector -
+                tf.expand_dims(biases_with_dummy, axis=0) -
                 1e30 * tf.expand_dims(self._unpredictable_tokens, axis=0))
-        sense_p_1d = tf.nn.softmax(target_scores, axis=1)
-        # (n_targets, total_senses + 1)
-        sense_p_1d = tf.concat(
-                [sense_p_1d, tf.zeros([tf.shape(sense_p_1d)[0], 1])], axis=1)
-        # (n_targets, max_senses)
-        sense_p = tf.batch_gather(
-                sense_p_1d, self._1d_target_senses)
-        # (n_targets)
-        token_p = tf.maximum(tf.reduce_sum(sense_p, axis=1), 1e-30)
-        log_token_p = tf.log(token_p)
-        self.lm_loss = -tf.reduce_mean(log_token_p)
-
-        self._qp = sense_p / tf.expand_dims(token_p, axis=1)
+        target_position_probs = tf.nn.softmax(target_position_scores, axis=1)
+        target_sense_indices = tf.nn.embedding_lookup(
+                self._sense_indices, self._targets)
+        target_sense_probs = tf.gather(
+                target_position_probs,
+                target_sense_indices,
+                batch_dims=1)
+        target_sense_masks = tf.nn.embedding_lookup(
+                self._sense_mask, self._targets)
+        target_sense_probs = target_sense_probs * target_sense_masks
+        target_token_probs = tf.reduce_sum(target_sense_probs, axis=1)
+        target_token_probs = tf.maximum(target_token_probs, 1e-30)
+        log_target_probs = tf.log(target_token_probs)
+        self.lm_loss = -tf.reduce_mean(log_target_probs)
+        
+        self._qp = target_sense_probs / tf.expand_dims(
+                target_token_probs, axis=1)
 
         targets_are_multisense = tf.nn.embedding_lookup(
                 self._is_multisense, self._targets)
@@ -220,22 +207,24 @@ class PolyLMModel():
         self._add_find_neighbours()
         self._add_get_mean_q()
 
-    def add_to_feed_dict(self, feed_dict, batch, dl_r, ml_coeff):
-        padding = np.zeros(batch.masked_seqs.shape, dtype=np.int32)
-        for i, l in enumerate(batch.seq_len):
-            padding[i, :l] = 1
-        feed_dict.update({
-                self._masked_seqs: batch.masked_seqs,
-                self._padding: padding,
-                self._target_indices: batch.target_indices,
-                self._targets: batch.targets,
-                self._dl_r: dl_r,
-                self._ml_coeff: ml_coeff})
+    def _get_sense_embeddings(self, tokens):
+        sense_indices = tf.nn.embedding_lookup(
+                self._sense_indices, tokens)
+        return tf.nn.embedding_lookup(
+                self._embeddings, sense_indices)
+
+    def _get_sense_embeddings_and_biases(self, tokens):
+        sense_indices = tf.nn.embedding_lookup(
+                self._sense_indices, tokens)
+        sense_embeddings = tf.nn.embedding_lookup(
+                self._embeddings, sense_indices)
+        sense_biases = tf.nn.embedding_lookup(
+                self._biases, sense_indices)
+        return sense_embeddings, sense_biases
 
     def _make_word_embeddings(self, seqs, sense_weights=None):
         # ids.shape + (n_senses, embedding_size)
-        sense_embeddings = tf.nn.embedding_lookup(
-                self._embedding_tensor, seqs)
+        sense_embeddings = self._get_sense_embeddings(seqs)
         
         if sense_weights is None:
             # ids.shape + (n_senses,)
@@ -254,15 +243,14 @@ class PolyLMModel():
 
     def _calculate_sense_probs(self, seqs, reps):
         # ids.shape + (n_senses, embedding_size)
-        sense_embeddings = tf.nn.embedding_lookup(
-                self._embedding_tensor, seqs)
+        sense_embeddings, sense_biases = self._get_sense_embeddings_and_biases(
+                seqs)
         # ids.shape + (n_senses, 1)
         sense_scores = tf.matmul(
                 sense_embeddings, tf.expand_dims(reps, axis=-1))
         # ids.shape + (n_senses)
         sense_scores = tf.squeeze(sense_scores, [-1])
-        bias = tf.nn.embedding_lookup(self._bias_matrix, seqs)
-        sense_scores = sense_scores + bias
+        sense_scores = sense_scores + sense_biases
         sense_mask = tf.nn.embedding_lookup(
                 self._sense_mask, seqs)
         return masked_softmax(sense_scores, sense_mask) 
@@ -299,6 +287,19 @@ class PolyLMModel():
         current_values = tf.gather_nd(mean, indices)
         updates = weight * (values - current_values)
         return tf.scatter_nd_add(mean, indices, updates)
+
+    def add_to_feed_dict(self, feed_dict, batch, dl_r, ml_coeff):
+        padding = np.zeros(batch.unmasked_seqs.shape, dtype=np.int32)
+        for i, l in enumerate(batch.seq_len):
+            padding[i, :l] = 1
+        feed_dict.update({
+                self._unmasked_seqs: batch.unmasked_seqs,
+                self._masked_seqs: batch.masked_seqs,
+                self._padding: padding,
+                self._target_positions: batch.target_positions,
+                self._targets: batch.targets,
+                self._dl_r: dl_r,
+                self._ml_coeff: ml_coeff})
 
     def contextualize(self, sess, batch):
         padding = np.zeros(batch.masked_seqs.shape, dtype=np.int32)
@@ -340,52 +341,57 @@ class PolyLMModel():
         return sess.run(request, feed_dict=feed_dict)
 
     def get_sense_embeddings(self, sess):
-        return sess.run(self._embedding_tensor)
+        return sess.run(self._embeddings)
 
     def _add_find_neighbours(self):
         self._interesting_ids = tf.placeholder(tf.int32, [None])
         self._n_neighbours = tf.placeholder(tf.int32, [])
 
+        sense_indices = tf.nn.embedding_lookup(
+                self._sense_indices, self._interesting_ids)
         interesting_embeddings = tf.nn.embedding_lookup(
-                self._embedding_tensor, self._interesting_ids)
+                self._embeddings, sense_indices)
         interesting_embeddings = tf.reshape(
                 interesting_embeddings, [-1, self._embedding_size])
         interesting_norms = tf.norm(
                 interesting_embeddings, axis=1)
 
-        flattened_embeddings = tf.reshape(
-                self._embedding_tensor, [-1, self._embedding_size])
-        norms = tf.norm(flattened_embeddings, axis=1)
+        norms = tf.norm(self._embeddings, axis=1)
 
         # (n_interesting, vocab.size*n_senses)
         dot = tf.matmul(interesting_embeddings,
-                        flattened_embeddings,
+                        self._embeddings,
                         transpose_b=True)
         dot = dot / tf.expand_dims(interesting_norms, axis=1)
         dot = dot / tf.expand_dims(norms, axis=0)
         cosine_similarities = tf.reshape(
                 dot,
-                [-1, self._max_senses, self._vocab.size, self._max_senses])
-        mask = tf.expand_dims(self._sense_mask - 1.0, axis=0)
+                [-1, self._max_senses, self._total_senses])
+        mask = tf.concat([
+                tf.constant([2.0]),
+                tf.zeros([self._total_senses - 1], dtype=tf.float32)],
+                axis=0)
         mask = tf.expand_dims(mask, axis=0)
-        masked_similarities = cosine_similarities + mask
-        masked_similarities = tf.reshape(
-                masked_similarities,
-                [-1, self._max_senses, self._max_senses * self._vocab.size])
+        mask = tf.expand_dims(mask, axis=0)
+        cosine_similarities = cosine_similarities - mask
 
-        self._neighbour_similarities, self._neighbour_indices = (
-                tf.nn.top_k(masked_similarities, k=self._n_neighbours))
+        self._neighbour_similarities, indices = tf.nn.top_k(
+                cosine_similarities, k=self._n_neighbours)
+        self._neighbour_similarities = self._neighbour_similarities[:, :, 1:]
+        self._neighbour_tokens = tf.nn.embedding_lookup(
+                self._sense_to_token, indices)[:, :, 1:]
+        self._neighbour_sense_nums = tf.nn.embedding_lookup(
+                self._sense_to_sense_num, indices)[:, :, 1:]
 
     def get_neighbours(self, sess, tokens, n=10):
         feed_dict = {self._interesting_ids: tokens,
                      self._n_neighbours: n}
-        similarities, indices = sess.run(
-                [self._neighbour_similarities, self._neighbour_indices],
+        similarities, tokens, sense_nums = sess.run(
+                [self._neighbour_similarities,
+                 self._neighbour_tokens,
+                 self._neighbour_sense_nums],
                 feed_dict=feed_dict)
-        similarities = similarities[:, :, 1:]
-        tokens = indices[:, :, 1:] // self._max_senses
-        senses = indices[:, :, 1:] % self._max_senses
-        return similarities, tokens, senses
+        return similarities, tokens, sense_nums
 
 
 def _deduplicated_indexed_slices(values, indices):
@@ -470,8 +476,7 @@ class PolyLM(object):
 
         for i in range(self._n_towers):
             with tf.device('/gpu:%d' % i):
-                #with tf.variable_scope('polylm', reuse=tf.AUTO_REUSE):
-                with tf.variable_scope('lm', reuse=tf.AUTO_REUSE):
+                with tf.variable_scope('polylm', reuse=tf.AUTO_REUSE):
                     tower = PolyLMModel(
                             self._vocab, self._n_senses,
                             self._options, training=training)
@@ -499,20 +504,6 @@ class PolyLM(object):
                 self._update_params,
                 self._default_model._update_mean_qp,
                 self._default_model._update_mean_qd)
-
-        self._grad_is_nan = tf.stack(
-                [tf.logical_or(tf.reduce_any(tf.is_nan(g)),
-                               tf.reduce_any(tf.is_inf(g)))
-                 for g, v in clipped_grads])
-        self._variables = [v for g, v, in clipped_grads]
-        self._var_is_nan = tf.stack(
-                [tf.logical_or(tf.reduce_any(tf.is_nan(v)),
-                               tf.reduce_any(tf.is_inf(v)))
-                 for v in self._variables])
-        self._any_nan_gradients = tf.reduce_any(self._grad_is_nan)
-        self._any_nan_vars = tf.reduce_any(self._var_is_nan)
-        self._any_nans = tf.logical_or(self._any_nan_vars,
-                                       self._any_nan_gradients)
 
         self._saver = tf.train.Saver(tf.global_variables(),
                                      max_to_keep=self._options.keep)
@@ -546,9 +537,6 @@ class PolyLM(object):
         n_params = sum(v.get_shape().num_elements()
                        for v in tf.trainable_variables()
                        if v.get_shape().num_elements() is not None)
-        n_params -= self._embedding_size * self._vocab.size * self._max_senses
-        for n in self._n_senses:
-            n_params += n * self._embedding_size
         logging.info('Num params: %d' % n_params)
 
     def get_embeddings(self, sess):
@@ -591,7 +579,6 @@ class PolyLM(object):
                 'lm_loss': self._lm_loss,
                 'd_loss': self._d_loss,
                 'm_loss': self._m_loss,
-                'any_nans': self._any_nans,
                 'global_step': self._global_step,
                 'grad_norm': self._grad_norm
         }
@@ -649,16 +636,11 @@ class PolyLM(object):
             batch_output = self._train_on_batch(sess, batches, batch_num)
 
             gpu_time_for_block += batch_output['time']
-
-            if batch_output['any_nans']:
-                logging.error('Batch had NaN values; exiting')
-                sys.exit()
-            else:
-                loss_for_block += batch_output['loss']
-                lm_loss_for_block += batch_output['lm_loss']
-                d_loss_for_block += batch_output['d_loss']
-                m_loss_for_block += batch_output['m_loss']
-                norm_for_block += batch_output['grad_norm']
+            loss_for_block += batch_output['loss']
+            lm_loss_for_block += batch_output['lm_loss']
+            d_loss_for_block += batch_output['d_loss']
+            m_loss_for_block += batch_output['m_loss']
+            norm_for_block += batch_output['grad_norm']
 
             if batch_num % self._options.print_every == 0:
                 block_end_time = time.time()

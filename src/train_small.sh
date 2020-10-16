@@ -1,6 +1,6 @@
 #!/bin/bash
 
-LOGDIR=/research/alan/experiments/polylm/small
+LOGDIR=/research/alan/experiments/polylm/matrix
 mkdir -p $LOGDIR
 SRCDIR=~aa381/nlp/PolyLM/src
 

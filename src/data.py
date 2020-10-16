@@ -180,11 +180,12 @@ class Vocabulary(object):
 
 class Batch(object):
 
-    def __init__(self, masked_seqs, seq_len, target_indices, targets,
-                 line_num=0):
+    def __init__(self, unmasked_seqs, masked_seqs, seq_len,
+                 target_positions, targets, line_num=0):
+        self.unmasked_seqs = unmasked_seqs
         self.masked_seqs = masked_seqs
         self.seq_len = seq_len
-        self.target_indices = target_indices
+        self.target_positions = target_positions
         self.targets = targets
         self.line_num = line_num
 
@@ -195,32 +196,38 @@ class ProtoBatch(object):
 
     def __init__(self, size, length, pad):
         self._size = size
+        self._unmasked_seqs = pad * np.ones([size, length], dtype=np.int32)
         self._masked_seqs = pad * np.ones([size, length], dtype=np.int32)
         self._seq_len = np.zeros([size], dtype=np.int32)
-        self._target_indices = []
+        self._target_positions = []
         self._targets = []
+        self._length = length
         self._count = 0
         self._line_num = 0
 
     def to_batch(self):
         if self._count < self._size:
+            self._unmasked_seqs = self._unmasked_seqs[:self._count, :]
             self._masked_seqs = self._masked_seqs[:self._count, :]
             self._seq_len = self._seq_len[:self._count]
 
-        return Batch(self._masked_seqs,
+        return Batch(self._unmasked_seqs,
+                     self._masked_seqs,
                      self._seq_len,
-                     np.array(self._target_indices),
+                     np.array(self._target_positions),
                      np.array(self._targets),
                      line_num=self._line_num)
 
     def add_sentence(self, s, target_indices, masks, line_num):
         self._line_num = line_num
+        n = len(s)
+        self._unmasked_seqs[self._count, :n] = s
         for i, index in enumerate(target_indices):
-            self._target_indices.append([self._count, index])
+            self._target_positions.append(
+                    self._count * self._length + index)
             self._targets.append(s[index])
             s[index] = masks[i]
 
-        n = len(s)
         self._masked_seqs[self._count, :n] = s
         self._seq_len[self._count] = n
 
