@@ -92,6 +92,8 @@ class PolyLMModel():
                 shape=[self._total_senses-1],
                 dtype=tf.float32,
                 initializer=tf.zeros_initializer())
+        self._biases_with_dummy = tf.concat(
+                [tf.constant([-1e30]), self._biases], axis=0)
         self._sense_weight_logits = tf.get_variable(
                 'sense_weights',
                 [self._vocab.size, self._max_senses],
@@ -141,14 +143,12 @@ class PolyLMModel():
         # (n_targets, embedding_size)
         target_position_reps = tf.nn.embedding_lookup(
                 flattened_reps, self._target_positions)
-        biases_with_dummy = tf.concat(
-                [tf.constant([-1e30]), self._biases], axis=0)
         # (n_targets, total_senses)
         target_position_scores = (
                 tf.matmul(target_position_reps,
                           self._embeddings,
                           transpose_b=True) +
-                tf.expand_dims(biases_with_dummy, axis=0) -
+                tf.expand_dims(self._biases_with_dummy, axis=0) -
                 1e30 * tf.expand_dims(self._unpredictable_tokens, axis=0))
         target_position_probs = tf.nn.softmax(target_position_scores, axis=1)
         target_sense_indices = tf.nn.embedding_lookup(
@@ -219,7 +219,7 @@ class PolyLMModel():
         sense_embeddings = tf.nn.embedding_lookup(
                 self._embeddings, sense_indices)
         sense_biases = tf.nn.embedding_lookup(
-                self._biases, sense_indices)
+                self._biases_with_dummy, sense_indices)
         return sense_embeddings, sense_biases
 
     def _make_word_embeddings(self, seqs, sense_weights=None):
@@ -318,7 +318,7 @@ class PolyLMModel():
         feed_dict = {
                 self._masked_seqs: batch.masked_seqs,
                 self._padding: padding,
-                self._target_indices: batch.target_indices,
+                self._target_positions: batch.target_positions,
                 self._targets: batch.targets}
         prob_tensors = {'prediction': self._qp}
         if self._has_disambiguation_layer:

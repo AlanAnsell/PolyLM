@@ -278,6 +278,12 @@ def make_batch(instances, vocab, max_seq_len,
     seq_len = np.zeros([n_instances], dtype=np.int32)
     masked_indices = np.zeros([n_instances, 2], dtype=np.int32)
     masked_ids = np.zeros([n_instances], dtype=np.int32)
+    unmasked_seqs = vocab.pad_vocab_id * np.ones(
+            [n_instances, max_seq_len], dtype=np.int32)
+    masked_seqs = vocab.pad_vocab_id * np.ones(
+            [n_instances, max_seq_len], dtype=np.int32)
+    target_positions = np.zeros([n_instances], dtype=np.int32)
+    targets = np.zeros([n_instances], dtype=np.int32)
 
     for i, instance in enumerate(instances):
         vocab_ids = [vocab.str2id(t) for t in instance['tokens']]
@@ -285,19 +291,19 @@ def make_batch(instances, vocab, max_seq_len,
                 vocab_ids, instance['index_in_seq'], vocab, max_seq_len)
         instance['span'] = span
         instance['index_in_span'] = index
-        ids[i, :len(span)] = span
+        unmasked_seqs[i, :len(span)] = span
+        masked_seqs[i, :len(span)] = span
         if mask:
-            ids[i, index] = vocab.mask_vocab_id
+            masked_seqs[i, index] = vocab.mask_vocab_id
         seq_len[i] = len(span)
-        masked_indices[i, 0] = i
-        masked_indices[i, 1] = index
+        target_positions[i] = i * max_seq_len + index
         if replace_with_lemma:
-            masked_ids[i] = vocab.str2id(instance['lemma'])
+            targets[i] = vocab.str2id(instance['lemma'])
         else:
-            masked_ids[i] = span[index]
+            targets[i] = span[index]
 
     return data.Batch(
-            ids, seq_len, masked_indices, masked_ids)
+            unmasked_seqs, masked_seqs, seq_len, target_positions, targets)
 
 class WicCorpus(object):
 
