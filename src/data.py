@@ -291,7 +291,7 @@ class Corpus(object):
 
     def generate_batches(self, batch_size, max_seq_len, mask_prob,
                          must_contain=None, variable_length=False,
-                         pad_prob=0.1, bert_masking=False):
+                         pad_prob=0.1, masking_policy=[1.0, 0.0, 0.0]):
         batcher = Batcher(batch_size, max_seq_len, self._vocab.pad_vocab_id,
                           variable_length=variable_length, pad_prob=pad_prob)
         for line, line_num in self.read_lines(max_seq_len):
@@ -308,17 +308,23 @@ class Corpus(object):
                 if len(target_indices) == 0:
                     continue
                 masks = []
+                assert abs(sum(masking_policy) - 1.0) < 1e-6
+                mask_token_thresh = masking_policy[0]
+                self_thresh = mask_token_thresh + masking_policy[1]
                 for i in target_indices:
-                    if bert_masking:
-                        r = random.random()
-                        if r < 0.8:
-                            masks.append(self._vocab.mask_vocab_id)
-                        elif r < 0.9:
-                            masks.append(line[i])
-                        else:
-                            masks.append(random.randint(0, self._vocab.size-1))
-                    else:
+                    r = random.random()
+                    if r < mask_token_thresh:
                         masks.append(self._vocab.mask_vocab_id)
+                    elif r < self_thresh:
+                        masks.append(line[i])
+                    else:
+                        while True:
+                            t = random.randint(0, self._vocab.size-1)
+                            if t not in [self._vocab.pad_vocab_id,
+                                         self._vocab.bos_vocab_id,
+                                         self._vocab.eos_vocab_id]:
+                                masks.append(random.randint(0, self._vocab.size-1))
+                                break
             else:
                 target_indices = []
                 masks = []

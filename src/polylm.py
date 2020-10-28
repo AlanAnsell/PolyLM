@@ -618,10 +618,16 @@ class PolyLM(object):
         norm_for_block = 0.0
         #global_step = 1
         tokens_read = 0
+        masking_policy = [
+                float(x) for x in self._options.masking_policy.split()]
+        logging.info('Masking policy: %.2f [MASK], %.2f self, %.2f random' % (
+                masking_policy[0],
+                masking_policy[1],
+                masking_policy[2]))
         batch_gen = corpus.generate_batches(
                 self._options.batch_size, self._options.max_seq_len,
                 self._options.mask_prob, variable_length=True,
-                bert_masking=self._options.bert_masking)
+                masking_policy=masking_policy)
         batch_num = sess.run(self._global_step)
         block_start_batch = batch_num
         block_start_time = time.time()

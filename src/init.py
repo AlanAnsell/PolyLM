@@ -65,14 +65,14 @@ tf.app.flags.DEFINE_integer(
         "Number of batches over which match loss coefficient is linearly "
         "increased at beginning of training.")
 tf.app.flags.DEFINE_float(
-        "mask_prob", 0.15, "The proportion of tokens which are replaced with "
-        "[MASK].")
-tf.app.flags.DEFINE_bool(
-        "bert_masking", True,
-        "Whether to use BERT's masking policy, i.e. 80% of MLM target tokens "
-        "are replaced with [MASK], 10% are replaced with a random token and "
-        "10% are unchanged. If false, all target tokens are replaced with "
-        "[MASK].")
+        "mask_prob", 0.15, "The proportion of tokens which are masked.")
+tf.app.flags.DEFINE_string(
+        "masking_policy", "0.8 0.1 0.1",
+        "Policy for masking input tokens, consisting of three space-separated "
+        "probabilities, the first denoting the proportion of target tokens "
+        "replaced with [MASK], the second denoting the proportion left "
+        "unchanged, and the third denoting the proportion replaced with a "
+        "random token.")
 
 # Preprocessing parameters
 tf.app.flags.DEFINE_integer(
