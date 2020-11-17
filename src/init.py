@@ -112,6 +112,8 @@ tf.app.flags.DEFINE_string(
         "corpus_path", "", "Text file containing corpus.")
 tf.app.flags.DEFINE_string(
         "vocab_path", "", "Vocab file.")
+tf.app.flags.DEFINE_string
+        "pos_tagger_root", "", "Root directory of Stanford POS Tagger.")
 
 # Evaluation parameters
 tf.app.flags.DEFINE_string("sense_prob_source", "prediction", "")

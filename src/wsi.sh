@@ -5,10 +5,13 @@ lemmatize=true
 sense_prob_source="prediction"
 checkpoint_version=-1
 wsi_2013_thresh="0.2"
+pos_tagger_root=""
 
-train_dir=$1
+wsi_dir=$1
 shift
 format=$1
+shift
+train_dir=$1
 shift
 
 while [ $# -gt 0 ]; do
@@ -21,4 +24,4 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-python wsi.py --flagfile=$train_dir/flags --batch_size=16 --gpus=$gpus --wsi_format=$format --lemmatize=$lemmatize --sense_prob_source=$sense_prob_source --checkpoint_version=$checkpoint_version --wsi_2013_thresh=$wsi_2013_thresh
+python wsi.py --flagfile=$train_dir/flags --batch_size=16 --gpus=$gpus --wsi_path=$wsi_dir --wsi_format=$format --lemmatize=$lemmatize --sense_prob_source=$sense_prob_source --checkpoint_version=$checkpoint_version --wsi_2013_thresh=$wsi_2013_thresh --pos_tagger_root=$pos_tagger_root

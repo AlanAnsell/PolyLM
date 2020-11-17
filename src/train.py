@@ -5,8 +5,8 @@ import time
 
 import tensorflow as tf
 
-from data import Corpus
 import init
+from data import Corpus
 import polylm
 
 

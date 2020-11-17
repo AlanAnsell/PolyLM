@@ -20,6 +20,10 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 import joblib
 
+import tensorflow as tf
+
+FLAGS = tf.app.flags.FLAGS
+
 np.set_printoptions(linewidth=np.inf)
 
 PLURAL = '<PL>'
@@ -77,10 +81,10 @@ def stem_focus(focus, pos):
     return stemmed, suf
 
 def stem(sentences):
+    pos_tagger_root = FLAGS.pos_tagger_root
     tagger = StanfordPOSTagger(
-            '/home/aa381/nlp/tools/stanford-postagger-2018-10-16/models/english-left3words-distsim.tagger',
-            #'/home/aa381/nlp/tools/stanford-postagger-2018-10-16/models/english-bidirectional-distsim.tagger',
-            path_to_jar='/home/aa381/nlp/tools/stanford-postagger-2018-10-16/stanford-postagger.jar')
+            pos_tagger_root + '/models/english-left3words-distsim.tagger',
+            path_to_jar=pos_tagger_root + '/stanford-postagger.jar')
     for s in sentences:
         s.append('\n')
     joined = list(itertools.chain.from_iterable(sentences))
@@ -153,7 +157,6 @@ class Tokenizer(StanfordTokenizer):
 
 
 _TOKEN_MAP = {"``": '"', "''": '"', '--': '-', "/?": "?", "/.": ".", '-LRB-': '(', '-RRB-': ')'}
-_STANFORD_POSTAGGER_PATH = '/home/aa381/nlp/tools/stanford-postagger-2018-10-16/stanford-postagger-3.9.2.jar'
 _SEPARATOR = ' <SEP> '
 _TOKENIZER_OPTIONS = {'tokenizePerLine': 'true',
                       'americanize': 'false',
@@ -169,7 +172,7 @@ _TOKENIZER_OPTIONS = {'tokenizePerLine': 'true',
                       'splitHyphenated': 'true'}
 _TOKENIZER_OPTIONS_STR = ','.join(
         ['%s=%s' % item for item in _TOKENIZER_OPTIONS.items()])
-_TOKENIZER = Tokenizer(path_to_jar=_STANFORD_POSTAGGER_PATH,
+_TOKENIZER = Tokenizer(path_to_jar=FLAGS.pos_tagger_root + '/stanford-postagger.jar',
                        options=_TOKENIZER_OPTIONS)
 _LEMMATIZER = WordNetLemmatizer()
 
@@ -1033,15 +1036,14 @@ class WsiCorpus(object):
 def wsi(model, vocab, sess, options):
     path = options.wsi_path
     if options.wsi_format == 'SemEval-2010':
-        if not path:
-            path = '/home/aa381/nlp/datasets/wsi/resources/SemEval-2010/test_data'
+        path = os.path.join(path, 'test_data')
         corpus = generate_sem_eval_wsi_2010(path, vocab, stem=options.lemmatize)
         allow_multiple = False
     elif options.wsi_format == 'SemEval-2013':
-        if not path:
-            path = ('/home/aa381/nlp/datasets/wsi/resources/'
-                    'SemEval-2013-Task-13-test-data/contexts/senseval2-format/'
-                    'semeval-2013-task-13-test-data.senseval2.xml')
+        path = os.path.join(
+                path,
+                'contexts/senseval2-format/'
+                'semeval-2013-task-13-test-data.senseval2.xml')
         corpus = generate_sem_eval_wsi_2013(path, vocab, stem=options.lemmatize)
         allow_multiple = True
     else:

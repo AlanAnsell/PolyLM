@@ -514,12 +514,7 @@ class PolyLM(object):
                     model_dir, self._options.checkpoint_version)
         else:
             logging.info('Looking for model at %s...' % model_dir)
-            ckpt = tf.train.get_checkpoint_state(model_dir)
-            if ckpt:
-                path = ckpt.model_checkpoint_path
-            else:
-                path = None
-            #v2_path = ckpt.model_checkpoint_path + '.index' if ckpt else ''
+            path = tf.train.latest_checkpoint(model_dir)
         if path and tf.gfile.Exists(path + '.index'):
             sess.run(tf.global_variables_initializer())
             logging.info('Reading model parameters from %s' % path)
