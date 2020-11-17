@@ -141,11 +141,11 @@ class PolyLMModel():
                 self._output_reps, [-1, self._embedding_size])
         
         # (n_targets, embedding_size)
-        target_position_reps = tf.nn.embedding_lookup(
+        self._target_reps = tf.nn.embedding_lookup(
                 flattened_reps, self._target_positions)
         # (n_targets, total_senses)
         target_position_scores = (
-                tf.matmul(target_position_reps,
+                tf.matmul(self._target_reps,
                           self._embeddings,
                           transpose_b=True) +
                 tf.expand_dims(self._biases_with_dummy, axis=0) -
@@ -308,7 +308,7 @@ class PolyLMModel():
         feed_dict = {
                 self._masked_seqs: batch.masked_seqs,
                 self._padding: padding,
-                self._target_indices: batch.target_indices}
+                self._target_positions: batch.target_positions}
         return sess.run(self._target_reps, feed_dict=feed_dict)
 
     def disambiguate(self, sess, batch, method='prediction'):
