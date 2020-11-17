@@ -396,7 +396,7 @@ class WicCorpus(object):
 
         return all_instances
 
-def score_wic_task(vocab, model, sess, options):
+def wic(model, vocab, sess, options):
     labels = []
     if options.wic_train:
         label_map = {'F': 0, 'T': 1}
@@ -422,7 +422,7 @@ def score_wic_task(vocab, model, sess, options):
     for i, dataset in enumerate(sets):
         instances.append(dataset.calculate_representations(
                 sess, model, options.batch_size,
-                options.max_sentence_len,
+                options.max_seq_len,
                 method=options.sense_prob_source))
 
     n_instances = len(instances[0])
@@ -716,7 +716,7 @@ class WsdCorpus(object):
                     done = True
                     break
             yield instances, make_batch(instances, self._vocab,
-                                        options.max_sentence_len)
+                                        options.max_seq_len)
 
     def calculate_sense_probs(
             self, sess, model, options, training=False,
@@ -869,16 +869,15 @@ def get_definitions(w):
     lemmas = wn.lemmas(w)
     return {lemma.key(): lemma.synset().definition() for lemma in lemmas}
     
-def wsd(eval_path, train_path, train_gold_path, vocab,
-        model, sess, options, verbose=False, eval_gold_path=None,
-        use_usage_examples=True):
-    eval_corpus = WsdCorpus(eval_path, vocab, stem=options.lemmatize)
+def wsd(model, vocab, sess, options, verbose=False):
+    eval_corpus = WsdCorpus(options.wsd_eval_path, vocab, stem=options.lemmatize)
     eval_labels = None
-    if eval_gold_path is not None:
-        eval_labels = get_labels(eval_gold_path)
+    if options.wsd_eval_gold_path is not None:
+        eval_labels = get_labels(options.wsd_eval_gold_path)
     all_lemmas = eval_corpus.get_all_lemmas()
-    train_corpus = WsdCorpus(train_path, vocab, gold_path=train_gold_path,
-                             stem=options.lemmatize, extras=all_lemmas)
+    train_corpus = WsdCorpus(
+            options.wsd_train_path, vocab, gold_path=options.wsd_train_gold_path,
+            stem=options.lemmatize, extras=all_lemmas)
     #instances_with_word = eval_corpus.calculate_sense_probs(
     #        sess, model, options, training=False, replace_with_lemma=False)
     instances_with_lemma = eval_corpus.calculate_sense_probs(
@@ -894,7 +893,7 @@ def wsd(eval_path, train_path, train_gold_path, vocab,
         lemma = instance['lemma']
         sense_probs_with_word, M_w, keys_w = wordnet_sense_probs(
                 instance, train_corpus, vocab, model, sess, options,
-                use_usage_examples=use_usage_examples)
+                use_usage_examples=options.wsd_use_usage_examples)
         sense_probs = sense_probs_with_word
         #if lemma != word:
         #    instance_with_lemma = instances_with_lemma[i]
@@ -1169,211 +1168,6 @@ def generate_sem_eval_wsi_2010(dir_path, vocab, stem=False):
 
     return WsiCorpus(examples, vocab, stem=stem)
 
-def iterlines(corpus, options):
-    line_reader = corpus.read_lines()
-    while True:
-        line = []
-        while len(line) == 0 or len(line) > options.max_sentence_len:
-            line = next(line_reader)
-        yield line
-
-def save_negative_contexts(corpus, context_model, session, options):
-    n_required = options.negative_contexts_required
-    contexts = []
-    ids = np.zeros([n_required], dtype=np.int32)
-    count = 0
-
-    line_reader = corpus.read_lines(options.max_sentence_len)
-    batch_num = 1
-    
-    while count < n_required:
-        proto_partition = data.ProtoPartition(
-                options.batch_size, options.max_sentence_len,
-                corpus.pad_vocab_id, corpus.mask_vocab_id)
-
-        i = 0
-        while count < n_required and i < options.batch_size:
-            sentence = next(line_reader)
-            masked_index = random.randint(1, len(sentence)-2)
-            ids[count] = sentence[masked_index]
-            proto_partition.add_sentence(sentence, [masked_index])
-            count += 1
-            i += 1
-
-        partition = proto_partition.to_partition()
-        contexts.append(context_model.contextualize(session, partition))
-
-        if batch_num % 100 == 0:
-            logging.info('Extracted %d negative contexts' % count)
-        batch_num += 1
-
-    contexts = np.concatenate(contexts, axis=0)
-    
-    save_dir = options.context_save_dir
-    contexts_path = os.path.join(save_dir, 'negative_contexts.npy')
-    np.save(contexts_path, contexts)
-    ids_path = os.path.join(save_dir, 'negative_ids.npy')
-    np.save(ids_path, ids)
-
-def save_positive_contexts(vocab_id, corpus, context_model, session, options):
-    n_required = options.positive_contexts_required
-    contexts = []
-    count = 0
-
-    line_reader = corpus.read_lines(options.max_sentence_len)
-    batch_num = 1
-    
-    while count < n_required:
-        proto_partition = data.ProtoPartition(
-                options.batch_size, options.max_sentence_len,
-                corpus.pad_vocab_id, corpus.mask_vocab_id)
-
-        i = 0
-        while count < n_required and i < options.batch_size:
-            sentence = next(line_reader)
-            indices = []
-            for j, t in enumerate(sentence):
-                if t == vocab_id:
-                    indices.append(j)
-            if len(indices) == 0:
-                continue
-
-            masked_index = random.choice(indices)
-            proto_partition.add_sentence(sentence, [masked_index])
-            count += 1
-            i += 1
-
-        partition = proto_partition.to_partition()
-        contexts.append(context_model.contextualize(session, partition))
-
-        if batch_num % 100 == 0:
-            logging.info('Extracted %d negative contexts' % count)
-        batch_num += 1
-
-    contexts = np.concatenate(contexts, axis=0)
-    save_dir = options.context_save_dir
-    contexts_path = os.path.join(save_dir, '%d.npy' % vocab_id)
-    np.save(contexts_path, contexts)
-
-def get_cluster_contexts(save_dir, corpus, context_model, session, options,
-                         positives_required, negatives_required,
-                         max_contexts_in_ram=10000000):
-    positive_context_ids = {t: [] for t in positives_required}
-    context_file_written = {t: False for t in positives_required}
-    total_positives_required = sum(positives_required.values())
-    positives_found = 0
-    negatives_found = 0
-    negatives_written = False
-    positive_contexts = np.zeros(
-            [max_contexts_in_ram, options.embedding_size],
-             dtype=np.float32)
-    negative_contexts = np.zeros([negatives_required, options.embedding_size],
-                                 dtype=np.float32)
-    negative_ids = np.zeros([negatives_required], dtype=np.int32)
-    free_list = list(range(max_contexts_in_ram))
-    n_free = max_contexts_in_ram
-    line_reader = iterlines(corpus, options)
-    batch_num = 1
-    finished_corpus = False
-    
-    while not finished_corpus and (
-            len(positives_required) > 0 or negatives_found < negatives_required):
-        start_time = time.clock()
-        sentences = []
-        while len(sentences) < options.batch_size:
-            try:
-                sentence = next(line_reader)
-            except StopIteration:
-                finished_corpus = True
-                break
-            use = False
-            for t in sentence:
-                if t in positives_required:
-                    use = True
-            if use:
-                sentences.append(sentence)
-
-        batch = corpus.sentences2batch(
-                sentences, options.max_sentence_len)
-        contexts = context_model.contextualize(session, batch)
-
-        for i, s in enumerate(sentences):
-            if negatives_found < negatives_required:
-                index = random.randint(1, len(s)-2)
-            else:
-                index = -1
-            for j, t in enumerate(s):
-                found = set([])
-                if (t in positives_required and
-                        positives_required[t] > 0 and
-                        t not in found):
-                    n_free -= 1
-                    row = free_list[n_free]
-                    positive_contexts[row] = contexts[i, j-1, :]
-                    positive_context_ids[t].append(row)
-                    positives_required[t] -= 1
-                    positives_found += 1
-                    found.add(t)
-                if j == index:
-                    negative_contexts[negatives_found] = contexts[i, index-1, :]
-                    negative_ids[negatives_found] = t
-                    negatives_found += 1
-
-        for t in list(positives_required):
-            if positives_required[t] == 0 or finished_corpus:
-                logging.info('Saving all contexts for "%s"' % corpus.id2str(t))
-                contexts = positive_contexts[positive_context_ids[t], :]
-                for row in positive_context_ids[t]:
-                    free_list[n_free] = row
-                    n_free += 1
-                positive_context_ids[t].clear()
-                del positives_required[t]
-                path = os.path.join(save_dir, '%d.npy' % t)
-                if context_file_written[t]:
-                    old_contexts = np.load(path)
-                    contexts = np.concatenate([old_contexts, contexts], axis=0)
-                else:
-                    context_file_written[t] = True
-                np.save(path, contexts)
-
-        if negatives_found == negatives_required and not negatives_written:
-            negatives_written = True
-            if negatives_required > 0:
-                contexts_path = os.path.join(save_dir, 'negative_contexts.npy')
-                np.save(contexts_path, negative_contexts)
-                ids_path = os.path.join(save_dir, 'negative_ids.npy')
-                np.save(ids_path, negative_ids)
-
-        while n_free < options.batch_size * options.max_sentence_len:
-            max_id = -1
-            max_n = -1
-            for t, ids in positive_context_ids.items():
-                if len(ids) > max_n:
-                    max_id = t
-                    max_n = len(ids)
-            logging.info('Saving contexts for "%s" to disc to save ram' %
-                         corpus.id2str(max_id))
-            contexts = positive_contexts[positive_context_ids[max_id], :]
-            for row in positive_context_ids[max_id]:
-                free_list[n_free] = row
-                n_free += 1
-            positive_context_ids[max_id].clear()
-            path = os.path.join(save_dir, '%d.npy' % max_id)
-            if context_file_written[max_id]:
-                old_contexts = np.load(path)
-                contexts = np.concatenate([old_contexts, contexts], axis=0)
-            np.save(path, contexts)
-            context_file_written[max_id] = True
-
-        end_time = time.clock()
-        batch_time = end_time - start_time
-
-        logging.info('Batch %d: %.3fs, %d contexts in memory, %d/%d positives, '
-                     '%d/%d negatives' % (
-                batch_num, batch_time, max_contexts_in_ram - n_free,
-                positives_found, total_positives_required, negatives_found,
-                negatives_required))
-        batch_num += 1
 
 def print_embeddings(model, sess, words, vocab, options):
     embeddings = model.get_embeddings(sess)
