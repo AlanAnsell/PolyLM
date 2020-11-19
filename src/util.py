@@ -172,8 +172,13 @@ _TOKENIZER_OPTIONS = {'tokenizePerLine': 'true',
                       'splitHyphenated': 'true'}
 _TOKENIZER_OPTIONS_STR = ','.join(
         ['%s=%s' % item for item in _TOKENIZER_OPTIONS.items()])
-_TOKENIZER = Tokenizer(path_to_jar=FLAGS.pos_tagger_root + '/stanford-postagger.jar',
-                       options=_TOKENIZER_OPTIONS)
+_TOKENIZER = None
+
+def get_tokenizer():
+    return Tokenizer(
+            path_to_jar=FLAGS.pos_tagger_root + '/stanford-postagger.jar',
+            options=_TOKENIZER_OPTIONS)
+
 _LEMMATIZER = WordNetLemmatizer()
 
 _NLTK_TO_WORDNET_POS = {'n': 'NOUN', 'v': 'VERB', 'a': 'ADJ', 's': 'ADJ', 'r': 'ADV'}
@@ -207,8 +212,8 @@ def tokenize_sequence(seq, vocab):
     return list(itertools.chain.from_iterable(
             [split_token(t, vocab) for t in seq]))
     
-def tokenize(seqs):
-    tokenized_seqs = _TOKENIZER.tokenize('\n'.join(seqs))
+def tokenize(seqs, tokenizer):
+    tokenized_seqs = tokenizer.tokenize('\n'.join(seqs))
     tokenized_seqs = [s.split() for s in tokenized_seqs]
     alignments = []
     for seq, tok in zip(seqs, tokenized_seqs):
@@ -326,7 +331,7 @@ class WicCorpus(object):
             self._pos.append(pos)
             seqs.append(sentence)
 
-        token_lists, alignments = tokenize(seqs)
+        token_lists, alignments = tokenize(seqs, get_tokenizer())
         self._tokens = []
         for i, (tokens, alignment) in enumerate(zip(token_lists, alignments)):
             self._focuses[i] = alignment[self._focuses[i]]
@@ -966,7 +971,7 @@ class WsiCorpus(object):
             seqs.append(target)
             seqs.append(after)
 
-        tokens, _ = tokenize(seqs)
+        tokens, _ = tokenize(seqs, get_tokenizer())
         self._focuses = []
         self._tokens = []
         for i in range(0, len(tokens), 3):
