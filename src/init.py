@@ -102,9 +102,10 @@ tf.app.flags.DEFINE_integer(
 
 # File and directory parameters
 tf.app.flags.DEFINE_string(
-        "extra_multisense_vocab", "",
-        "File containing multisense tokens - overrides "
-        "min_occurrences_for_polysemy.")
+        "n_senses_file", "",
+        "File containing number of senses for each token - overrides "
+        "min_occurrences_for_polysemy. Tokens not listed in the file are "
+        "assumed to have a single sense.")
 tf.app.flags.DEFINE_string(
         "train_dir", "",
         "Training directory to save the model parameters and other info.")
@@ -147,24 +148,27 @@ tf.app.flags.DEFINE_integer("wsd_max_examples_per_sense", 1000000, ".")
 
 
 def get_multisense_vocab(path, vocab, FLAGS):
-    multisense_vocab = set(
-            [i for i in range(vocab.size)
-             if vocab.get_n_occurrences(i) >=
-                    FLAGS.min_occurrences_for_polysemy])
-    logging.info('Base multisense vocab: %d tokens occur more than %d times' % (
-            len(multisense_vocab), FLAGS.min_occurrences_for_polysemy))
     if path:
-        extra_multisense_vocab = set()
+        n_senses = {}
         with open(path, 'r') as f:
             for line in f:
-                vocab_id = vocab.str2id(line.strip())
+                parts = line.strip().split()
+                token = parts[0]
+                n = int(parts[1])
+                vocab_id = vocab.str2id(token)
                 if vocab_id == vocab.unk_vocab_id:
-                    logging.warn('Token "%s" not in vocabulary.' % line.strip())
-                extra_multisense_vocab.add(vocab_id)
-        logging.info('Extra multisense vocab: %d tokens' % len(extra_multisense_vocab))
-        multisense_vocab = multisense_vocab | extra_multisense_vocab
-        logging.info('Deduplicated multisense vocab: %d tokens' % len(multisense_vocab))
-    return sorted(list(multisense_vocab))
+                    logging.warn('Token "%s" not in vocabulary.' % token)
+                else:
+                    n_senses[vocab_id] = n
+    else:
+        n_senses = {
+                t: FLAGS.max_senses
+                for t in range(vocab.size)
+                if vocab.get_n_occurrences(t) >=
+                        FLAGS.min_occurrences_for_polysemy
+        }
+        
+    return n_senses
 
 
 def init():
@@ -176,7 +180,7 @@ def init():
 
     vocab = Vocabulary(options.vocab_path, options)
     multisense_vocab = get_multisense_vocab(
-            options.extra_multisense_vocab, vocab, options)
+            options.n_senses_file, vocab, options)
 
     tf_config = tf.ConfigProto()
     tf_config.gpu_options.allow_growth = True

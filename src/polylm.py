@@ -442,7 +442,7 @@ def clip_gradients(grads_and_vars, val):
 class PolyLM(object):
 
     def __init__(self, vocab, options,
-                 multisense_vocab=[], training=False):
+                 multisense_vocab={}, training=False):
         self._vocab = vocab
         self._options = options
         self._max_seq_len = self._options.max_seq_len
@@ -464,8 +464,9 @@ class PolyLM(object):
         self._opt = tf.train.AdamOptimizer(self._learning_rate)
 
         self._n_senses = np.ones([self._vocab.size], dtype=np.int32)
-        for t in multisense_vocab:
-            self._n_senses[t] = self._max_senses
+        for t, n in multisense_vocab.items():
+            assert n > 0 and n <= self._max_senses
+            self._n_senses[t] = n
 
         self._towers = []
         self._grads = []
