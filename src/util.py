@@ -1053,6 +1053,7 @@ def wsi(model, vocab, sess, options):
     for instance in instances:
         lemmas.setdefault(instance['lemma'], []).append(instance)
 
+    n_senses_count = np.zeros([options.max_senses_per_word + 1], dtype=np.int32)
     for lemma, instances in lemmas.items():
         for i, instance in enumerate(instances):
             lemma = instance['lemma']
@@ -1060,10 +1061,12 @@ def wsi(model, vocab, sess, options):
             sense_probs = instance['sense_probs']
             cluster_num = np.argmax(sense_probs)
             if allow_multiple:
-                score_str = ' '.join([
+                sense_labels = [
                         '%s.%s.%d/%.4f' % (lemma, pos, n+1, p)
                         for n, p in enumerate(sense_probs)
-                        if p > options.wsi_2013_thresh or n == cluster_num])
+                        if p > options.wsi_2013_thresh or n == cluster_num]
+                n_senses_count[len(sense_labels)] += 1
+                score_str = ' '.join(sense_labels)
             else:
                 score_str = '%s.%s.%d' % (lemma, pos, cluster_num+1)
 
@@ -1072,6 +1075,12 @@ def wsi(model, vocab, sess, options):
             logging.info('(%s)' % ('/'.join(['%.3f' % p for p in instance['sense_probs']])))
             print('%s.%s %s %s' % (lemma, pos, instance['name'], score_str))
         model.display_words(sess, [lemma])
+
+    n_senses_prob = n_senses_count / np.sum(n_senses_count)
+    for i, p in enumerate(n_senses_prob):
+        logging.info('Probability of assigning %d senses: %.4f' % (i, p))
+    mean = np.sum(np.arange(options.max_senses_per_word + 1) * n_senses_prob)
+    logging.info('Mean number of senses: %.4f' % mean)
 
 def generate_sem_eval_wsi_2013(path, vocab, stem=False):
     logging.info('reading SemEval dataset from %s' % path)
