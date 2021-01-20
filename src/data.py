@@ -128,6 +128,9 @@ class Vocabulary(object):
             
             for i in range(self._n_unique_tokens):
                 line = f.readline().strip().split()
+                if len(line) != 2:
+                    logging.warn('Invalid line: ' + str(line))
+                    continue
                 tok = line[0]
                 count = int(line[1])
                 self._tok2id[tok] = i
