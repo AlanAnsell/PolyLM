@@ -11,7 +11,7 @@ def main(unused_argv):
             vocab, options, multisense_vocab=multisense_vocab, training=False)
 
     with tf.Session(config=tf_config) as sess:
-        model.attempt_restore(sess, options.train_dir, True)
+        model.attempt_restore(sess, options.model_dir, True)
         util.wsd(model, vocab, sess, options, verbose=True)
 
 

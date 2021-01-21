@@ -102,19 +102,19 @@ tf.app.flags.DEFINE_integer(
 
 # File and directory parameters
 tf.app.flags.DEFINE_string(
-        "n_senses_file", "",
+        "model_dir", None,
+        "Directory where model parameters and other info are saved.")
+tf.app.flags.DEFINE_string(
+        "corpus_path", None, "Text file containing corpus.")
+tf.app.flags.DEFINE_string(
+        "vocab_path", None, "Vocab file.")
+tf.app.flags.DEFINE_string(
+        "n_senses_file", None,
         "File containing number of senses for each token - overrides "
         "min_occurrences_for_polysemy. Tokens not listed in the file are "
         "assumed to have a single sense.")
 tf.app.flags.DEFINE_string(
-        "train_dir", "",
-        "Training directory to save the model parameters and other info.")
-tf.app.flags.DEFINE_string(
-        "corpus_path", "", "Text file containing corpus.")
-tf.app.flags.DEFINE_string(
-        "vocab_path", "", "Vocab file.")
-tf.app.flags.DEFINE_string(
-        "pos_tagger_root", "", "Root directory of Stanford POS Tagger.")
+        "pos_tagger_root", None, "Root directory of Stanford POS Tagger.")
 
 # Evaluation parameters
 tf.app.flags.DEFINE_string("sense_prob_source", "prediction", "")
@@ -158,8 +158,8 @@ def get_multisense_vocab(path, vocab, FLAGS):
                 vocab_id = vocab.str2id(token)
                 if vocab_id == vocab.unk_vocab_id:
                     logging.warn('Token "%s" not in vocabulary.' % token)
-                else:
-                    n_senses[vocab_id] = n
+                #else:
+                n_senses[vocab_id] = n
     else:
         n_senses = {
                 t: FLAGS.max_senses
@@ -175,8 +175,12 @@ def init():
     options = tf.app.flags.FLAGS
     os.environ['CUDA_VISIBLE_DEVICES'] = options.gpus
 
-    if not options.train_dir or not options.vocab_path:
-        raise Exception('You need to specify --train_dir and --vocab_path')
+    if not options.model_dir:
+        raise Exception('You need to specify --model_dir')
+    if not options.vocab_path:
+        options.vocab_path = os.path.join(options.model_dir, 'vocab.txt')
+    if not options.n_senses_file:
+        options.n_senses_file = os.path.join(options.model_dir, 'n_senses.txt')
 
     vocab = Vocabulary(options.vocab_path, options)
     multisense_vocab = get_multisense_vocab(

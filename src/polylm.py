@@ -601,7 +601,7 @@ class PolyLM(object):
         logging.info('Vocab size: %d' % self._vocab.size)
         logging.info('Total senses: %d' % np.sum(self._n_senses))
 
-        checkpoint_path = os.path.join(self._options.train_dir, 'polylm.ckpt')
+        checkpoint_path = os.path.join(self._options.model_dir, 'polylm.ckpt')
         test_tokens = [self._vocab.str2id(w) for w in test_words]
         
         self.display_words(sess, test_words)

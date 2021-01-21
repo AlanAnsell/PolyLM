@@ -12,7 +12,7 @@ checkpoint_version=-1
 sense_prob_source="prediction"
 classification_threshold=-1.0
 
-train_dir=$1
+model_dir=$1
 shift
 
 while [ $# -gt 0 ]; do
@@ -36,7 +36,7 @@ else
     wic_train=false
 fi
 
-python wic.py --flagfile=$train_dir/flags --wic_gold_path=$wic_gold_path --wic_data_path=$wic_data_path --batch_size=32 --wic_model_path=$model_path --gpus=$gpus --lemmatize=$lemmatize --wic_use_contextualized_reps=$use_contextualized_reps --wic_use_sense_probs=$use_sense_probs --wic_train=$wic_train --wic_output_path=$output_dir/output.txt --checkpoint_version=$checkpoint_version --sense_prob_source=$sense_prob_source --wic_classification_threshold=$classification_threshold
+python wic.py --flagfile=$model_dir/flags --wic_gold_path=$wic_gold_path --wic_data_path=$wic_data_path --batch_size=32 --wic_model_path=$model_path --gpus=$gpus --lemmatize=$lemmatize --wic_use_contextualized_reps=$use_contextualized_reps --wic_use_sense_probs=$use_sense_probs --wic_train=$wic_train --wic_output_path=$output_dir/output.txt --checkpoint_version=$checkpoint_version --sense_prob_source=$sense_prob_source --wic_classification_threshold=$classification_threshold
 
 if [ "$mode" = "test" ]; then
     zip $output_dir/output.zip $output_dir/output.txt

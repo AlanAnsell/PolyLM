@@ -11,7 +11,7 @@ wsi_dir=$1
 shift
 format=$1
 shift
-train_dir=$1
+model_dir=$1
 shift
 
 while [ $# -gt 0 ]; do
@@ -24,4 +24,4 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-python wsi.py --flagfile=$train_dir/flags --batch_size=16 --gpus=$gpus --wsi_path=$wsi_dir --wsi_format=$format --lemmatize=$lemmatize --sense_prob_source=$sense_prob_source --checkpoint_version=$checkpoint_version --wsi_2013_thresh=$wsi_2013_thresh --pos_tagger_root=$pos_tagger_root
+python wsi.py --flagfile=$model_dir/flags --model_dir=$model_dir --batch_size=16 --gpus=$gpus --wsi_path=$wsi_dir --wsi_format=$format --lemmatize=$lemmatize --sense_prob_source=$sense_prob_source --checkpoint_version=$checkpoint_version --wsi_2013_thresh=$wsi_2013_thresh --pos_tagger_root=$pos_tagger_root

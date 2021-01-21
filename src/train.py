@@ -26,18 +26,20 @@ def main(unused_argv):
             vocab, options, multisense_vocab=multisense_vocab, training=True)
     test_words = options.test_words.split()
 
-    if not os.path.exists(options.train_dir):
-        os.makedirs(options.train_dir)
+    if not os.path.exists(options.model_dir):
+        os.makedirs(options.model_dir)
     
-    src_dir = os.path.join(options.train_dir, 'src_%d' % int(time.time()))
+    src_dir = os.path.join(options.model_dir, 'src_%d' % int(time.time()))
     os.makedirs(src_dir)
     publish_source(src_dir)
 
-    options.append_flags_into_file(os.path.join(options.train_dir, 'flags'))
+    flags_str = options.flags_into_string()
+    with open(os.path.join(options.model_dir, 'flags'), 'w') as f:
+        f.write(flags_str)
 
     corpus = Corpus(options.corpus_path, vocab)
     with tf.Session(config=tf_config) as sess:
-        model.attempt_restore(sess, options.train_dir, False)
+        model.attempt_restore(sess, options.model_dir, False)
         model.train(corpus, sess, test_words=test_words) 
 
 
