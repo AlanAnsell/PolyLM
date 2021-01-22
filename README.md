@@ -23,7 +23,7 @@ The first step is to create a vocabulary file for the corpus:
 
 The `min_occurrences` parameter controls which tokens are included in the vocabulary. Tokens which appear fewer than `min_occurrences` times in the corpus will be replaced with an `<UNK>` token during training.
 
-The following command can be used to train a model with the same parameters as PolyLM_{BASE}:
+The following command can be used to train a model with the same parameters as PolyLM<sub>BASE</sub>:
 
     python train.py --model_dir=/where/to/save/model
                     --corpus_path=/path/to/corpus/corpus.txt
@@ -53,3 +53,14 @@ Notes:
  * You may optionally supply a `--test_words` argument to specify a number of words for which to print nearest-neighbour senses during training. For instance, setting `--test_words="bank, rock, bar"` and `--test_every=1000` would cause nearest-neighbour senses for all senses of words "bank", "rock" and "bar" to be printed each 1,000 batches. This can be useful for ensuring that training is proceeding as intended.
 
 
+## Word Sense Induction
+
+Download the SemEval 2010 and 2013 WSI datasets (perhaps using [this script](https://github.com/asafamr/bertwsi/blob/master/download_resources.sh) from Asaf Amrami). Within a top-level `SemEval-2010` directory, the SemEval-2010 test data and evaluation scripts should be in folders named `test_data` and `evaluation` respectively.
+
+PolyLM evaluation can be performed as follows:
+
+    ./wsi.sh /path/to/SemEval-2010 SemEval-2010 /path/to/model --gpus 0 --pos_tagger_root /path/to/stanford/pos/tagger
+    ./wsi.sh /path/to/SemEval-2013 SemEval-2013 /path/to/model --gpus 0 --pos_tagger_root /path/to/stanford/pos/tagger
+
+Note that inference is only supported on a single GPU currently, but is generally very fast.
+    
