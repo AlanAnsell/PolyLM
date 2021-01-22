@@ -10,7 +10,7 @@ import argparse
 
 class Vocabulary(object):
 
-    def __init__(self, path, options, build=False):
+    def __init__(self, path, min_occurences=500, build=False):
         self._tok2id = {}
         self._id2tok = {}
         self._n_occurrences = {}
@@ -26,7 +26,7 @@ class Vocabulary(object):
         self._eos_id = -1
 
         if build:
-            self._build(path, options)
+            self._build(path)
         else:
             self._load(path)
 
@@ -43,10 +43,10 @@ class Vocabulary(object):
 
         self._vocab = set(
                 [tok for tok, n_occurrences in self._n_occurrences.items()
-                 if n_occurrences >= options.min_occurrences_for_vocab])
+                 if n_occurrences >= min_occurrences])
 
         for n_occurrences in self._n_occurrences.values():
-            if n_occurrences < options.min_occurrences_for_vocab:
+            if n_occurrences < min_occurrences:
                 self._n_occurrences[self._unk_id] += n_occurrences
         
         self._vocab.add(self._unk_id)
@@ -147,15 +147,13 @@ class Vocabulary(object):
                 elif tok == self.eos:
                     self._eos_id = i
 
-    def _build(self, path, options):
+    def _build(self, path):
         self._n_unique_tokens = 0
         self.n_tokens = 0
         
         with open(path, 'r') as f:
             for line in f:
                 tokens = line.strip().split()
-                if len(tokens) > options.max_seq_len:
-                    continue
                 for tok in tokens:
                     tok = tok.lower()
                     self.n_tokens += 1
