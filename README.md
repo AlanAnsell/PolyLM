@@ -15,12 +15,12 @@ Currently [Stanford CoreNLP's part-of-speech tagger](https://nlp.stanford.edu/so
 ## Pretrained Models
 The code has been rewritten to achieve much better performance since the paper was published and the old checkpoints are no longer compatible. However this has enabled us to train a larger version of the model, PolyLM<sub>LARGE</sub> which is available below. We are also training versions of the SMALL and BASE models which are compatible with the new code.
 
-|Model|Embedding size|Num. params|
-|-----|--------------|-----------|
-|[PolyLM<sub>LARGE</sub>](https://docs.google.com/uc?export=download&id=1HON62UBIsEiwLTPHkdFrCau47tIfz948)|384|90M|
-|PolyLM<sub>BASE</sub>|256|54M|
-|PolyLM<sub>SMALL</sub>|128|24M|
-
+|Model|Embedding size|Num. params|FScore|VMeasure|SemEval-2010 AVG|FBC|FNMI|SemEval-2013 AVG|
+|-----|--------------|-----------|------|--------|----------------|---|----|----------------|
+|[PolyLM<sub>LARGE</sub>](https://docs.google.com/uc?export=download&id=1HON62UBIsEiwLTPHkdFrCau47tIfz948)|384|90M|67.5|**43.6**|**54.3**|**66.7**|**23.7**|**39.7**|
+|PolyLM<sub>BASE</sub>|256|54M|65.8|40.5|51.6|64.8|23.0|38.6|
+|PolyLM<sub>SMALL</sub>|128|24M|65.6|35.7|48.4|64.5|18.5|34.5|
+|Amrami and Goldberg (2019) - BERT<sub>LARGE</sub>|1024|340M|**71.3**|40.4|53.6|64.0|21.4|37.0|
 
 
 ## Training
