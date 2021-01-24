@@ -147,7 +147,7 @@ tf.app.flags.DEFINE_bool("wsd_ignore_semeval_07", True, ".")
 tf.app.flags.DEFINE_integer("wsd_max_examples_per_sense", 1000000, ".")
 
 
-def get_multisense_vocab(path, vocab, FLAGS):
+def get_multisense_vocab(path, vocab, options):
     if path:
         n_senses = {}
         with open(path, 'r') as f:
@@ -162,10 +162,10 @@ def get_multisense_vocab(path, vocab, FLAGS):
                 n_senses[vocab_id] = n
     else:
         n_senses = {
-                t: FLAGS.max_senses
+                t: options.max_senses
                 for t in range(vocab.size)
                 if vocab.get_n_occurrences(t) >=
-                        FLAGS.min_occurrences_for_polysemy
+                        options.min_occurrences_for_polysemy
         }
         
     return n_senses
@@ -182,7 +182,8 @@ def init():
     if not options.n_senses_file:
         options.n_senses_file = os.path.join(options.model_dir, 'n_senses.txt')
 
-    vocab = Vocabulary(options.vocab_path, options)
+    vocab = Vocabulary(options.vocab_path,
+                       min_occurrences=options.min_occurrences_for_vocab)
     multisense_vocab = get_multisense_vocab(
             options.n_senses_file, vocab, options)
 

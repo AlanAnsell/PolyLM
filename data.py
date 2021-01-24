@@ -10,7 +10,7 @@ import argparse
 
 class Vocabulary(object):
 
-    def __init__(self, path, min_occurences=500, build=False):
+    def __init__(self, path, min_occurrences=500, build=False):
         self._tok2id = {}
         self._id2tok = {}
         self._n_occurrences = {}

@@ -12,6 +12,17 @@ Recommended environment is Python >= 3.7 and TensorFlow 1.15, although earlier v
 Currently [Stanford CoreNLP's part-of-speech tagger](https://nlp.stanford.edu/software/tagger.shtml#Download) is also required to perform lemmatization when evaluating on WSI.
 
 
+## Pretrained Models
+The code has been rewritten to achieve much better performance since the paper was published and the old checkpoints are no longer compatible. However this has enabled us to train a larger version of the model, PolyLM<sub>LARGE</sub> which is available below. We are also training versions of the SMALL and BASE models which are compatible with the new code.
+
+|Model|Embedding size|Num. params|
+|-----|--------------|-----------|
+|[PolyLM<sub>LARGE</sub>](https://docs.google.com/uc?export=download&id=1HON62UBIsEiwLTPHkdFrCau47tIfz948)|384|90M|
+|PolyLM<sub>BASE</sub>|256|54M|
+|PolyLM<sub>SMALL</sub>|128|24M|
+
+
+
 ## Training
 The training corpus should be stored in a text file, where each line is a training example. The maximum length of a line should be the maximum sequence length minus two (to allow for the addition of beginning and end of sequence tokens).
 
