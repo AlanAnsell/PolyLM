@@ -1083,11 +1083,12 @@ def wsi(model, vocab, sess, options):
             print('%s.%s %s %s' % (lemma, pos, instance['name'], score_str))
         model.display_words(sess, [lemma])
 
-    n_senses_prob = n_senses_count / np.sum(n_senses_count)
-    for i, p in enumerate(n_senses_prob):
-        logging.info('Probability of assigning %d senses: %.4f' % (i, p))
-    mean = np.sum(np.arange(options.max_senses_per_word + 1) * n_senses_prob)
-    logging.info('Mean number of senses: %.4f' % mean)
+    if allow_multiple:
+        n_senses_prob = n_senses_count / np.sum(n_senses_count)
+        for i, p in enumerate(n_senses_prob):
+            logging.info('Probability of assigning %d senses: %.4f' % (i, p))
+        mean = np.sum(np.arange(options.max_senses_per_word + 1) * n_senses_prob)
+        logging.info('Mean number of senses: %.4f' % mean)
 
 def generate_sem_eval_wsi_2013(path, vocab, stem=False):
     logging.info('reading SemEval dataset from %s' % path)
