@@ -22,6 +22,10 @@ The code has been rewritten to achieve much better performance since the paper w
 |PolyLM<sub>SMALL</sub>|128|24M|65.6|35.7|48.4|64.5|18.5|34.5|
 |Amrami and Goldberg (2019) - BERT<sub>LARGE</sub>|1024|340M|**71.3**|40.4|53.6|64.0|21.4|37.0|
 
+It may be most convenient to use the download scripts provided in the `models` folder, e.g. to download PolyLM<sub>LARGE</sub>, do
+
+    cd models
+    ./download-lemmatized-large.sh
 
 ## Training
 The training corpus should be stored in a text file, where each line is a training example. The maximum length of a line should be the maximum sequence length minus two (to allow for the addition of beginning and end of sequence tokens).
@@ -66,12 +70,16 @@ Notes:
 
 ## Word Sense Induction
 
-Download the SemEval 2010 and 2013 WSI datasets (perhaps using [this script](https://github.com/asafamr/bertwsi/blob/master/download_resources.sh) from Asaf Amrami). Within a top-level `SemEval-2010` directory, the SemEval-2010 test data and evaluation scripts should be in folders named `test_data` and `evaluation` respectively.
+First download the SemEval 2010 and 2013 WSI datasets:
+
+    cd data
+    ./download-wsi.sh
+    cd ..
 
 PolyLM evaluation can be performed as follows:
 
-    ./wsi.sh /path/to/SemEval-2010 SemEval-2010 /path/to/model --gpus 0 --pos_tagger_root /path/to/stanford/pos/tagger
-    ./wsi.sh /path/to/SemEval-2013 SemEval-2013 /path/to/model --gpus 0 --pos_tagger_root /path/to/stanford/pos/tagger
+    ./wsi.sh data/wsi/SemEval-2010 SemEval-2010 /path/to/model --gpus 0 --pos_tagger_root /path/to/stanford/pos/tagger
+    ./wsi.sh data/wsi/SemEval-2013 SemEval-2013 /path/to/model --gpus 0 --pos_tagger_root /path/to/stanford/pos/tagger
 
 Note that inference is only supported on a single GPU currently, but is generally very fast.
     
