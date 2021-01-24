@@ -13,7 +13,7 @@ Currently [Stanford CoreNLP's part-of-speech tagger v3.9.2](https://nlp.stanford
 
 
 ## Pretrained Models
-The code has been rewritten to achieve much better performance since the paper was published and the old checkpoints are no longer compatible. However this has enabled us to train a larger version of the model, PolyLM<sub>LARGE</sub> which is available below. We are also training versions of the SMALL and BASE models which are compatible with the new code.
+The code has been rewritten to achieve much better performance since the paper was published and the old checkpoints are no longer compatible. However this has enabled us to train a larger version of the model, PolyLM<sub>LARGE</sub>, which achieves state-of-the-art performance on both WSI datasets used for evaluation, and is available below. We are also training versions of the SMALL and BASE models which are compatible with the new code.
 
 |Model|Embedding size|Num. params|FScore|VMeasure|SemEval-2010 AVG|FBC|FNMI|SemEval-2013 AVG|
 |-----|--------------|-----------|------|--------|----------------|---|----|----------------|
