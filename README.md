@@ -9,7 +9,7 @@ Recommended environment is Python >= 3.7 and TensorFlow 1.15, although earlier v
     conda activate polylm
     pip install -r requirements.txt
 
-Currently [Stanford CoreNLP's part-of-speech tagger](https://nlp.stanford.edu/software/tagger.shtml#Download) is also required to perform lemmatization when evaluating on WSI.
+Currently [Stanford CoreNLP's part-of-speech tagger v3.9.2](https://nlp.stanford.edu/software/stanford-postagger-2018-10-16.zip) is also required to perform lemmatization when evaluating on WSI.
 
 
 ## Pretrained Models
@@ -75,6 +75,10 @@ First download the SemEval 2010 and 2013 WSI datasets:
     cd data
     ./download-wsi.sh
     cd ..
+
+Activate NLTK's WordNet capabilities:
+
+    python -c "import nltk; nltk.download('wordnet')"
 
 PolyLM evaluation can be performed as follows:
 
