@@ -162,7 +162,7 @@ def get_multisense_vocab(path, vocab, options):
                 n_senses[vocab_id] = n
     else:
         n_senses = {
-                t: options.max_senses
+                t: options.max_senses_per_word
                 for t in range(vocab.size)
                 if vocab.get_n_occurrences(t) >=
                         options.min_occurrences_for_polysemy
@@ -180,7 +180,9 @@ def init():
     if not options.vocab_path:
         options.vocab_path = os.path.join(options.model_dir, 'vocab.txt')
     if not options.n_senses_file:
-        options.n_senses_file = os.path.join(options.model_dir, 'n_senses.txt')
+        n_senses_file = os.path.join(options.model_dir, 'n_senses.txt')
+        if os.path.exists(n_senses_file):
+            options.n_senses_file = n_senses_file
 
     vocab = Vocabulary(options.vocab_path,
                        min_occurrences=options.min_occurrences_for_vocab)
