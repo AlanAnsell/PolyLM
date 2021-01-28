@@ -153,20 +153,20 @@ class PolyLMModel():
         target_position_probs = tf.nn.softmax(target_position_scores, axis=1)
         target_sense_indices = tf.nn.embedding_lookup(
                 self._sense_indices, self._targets)
-        target_sense_probs = tf.gather(
+        self.target_sense_probs = tf.gather(
                 target_position_probs,
                 target_sense_indices,
                 batch_dims=1)
         target_sense_masks = tf.nn.embedding_lookup(
                 self._sense_mask, self._targets)
-        target_sense_probs = target_sense_probs * target_sense_masks
-        target_token_probs = tf.reduce_sum(target_sense_probs, axis=1)
-        target_token_probs = tf.maximum(target_token_probs, 1e-30)
-        log_target_probs = tf.log(target_token_probs)
+        self.target_sense_probs = self.target_sense_probs * target_sense_masks
+        self.target_token_probs = tf.reduce_sum(self.target_sense_probs, axis=1)
+        self.target_token_probs = tf.maximum(self.target_token_probs, 1e-30)
+        log_target_probs = tf.log(self.target_token_probs)
         self.lm_loss = -tf.reduce_mean(log_target_probs)
         
-        self._qp = target_sense_probs / tf.expand_dims(
-                target_token_probs, axis=1)
+        self._qp = self.target_sense_probs / tf.expand_dims(
+                self.target_token_probs, axis=1)
 
         targets_are_multisense = tf.nn.embedding_lookup(
                 self._is_multisense, self._targets)
@@ -316,6 +316,7 @@ class PolyLMModel():
         for i, l in enumerate(batch.seq_len):
             padding[i, :l] = 1
         feed_dict = {
+                self._unmasked_seqs: batch.unmasked_seqs,
                 self._masked_seqs: batch.masked_seqs,
                 self._padding: padding,
                 self._target_positions: batch.target_positions,
@@ -324,6 +325,19 @@ class PolyLMModel():
         if self._has_disambiguation_layer:
             prob_tensors['disambiguation'] = self._qd
         return sess.run(prob_tensors[method], feed_dict=feed_dict)
+
+    def get_target_probs(self, sess, batch):
+        padding = np.zeros(batch.masked_seqs.shape, dtype=np.int32)
+        for i, l in enumerate(batch.seq_len):
+            padding[i, :l] = 1
+        feed_dict = {
+                self._unmasked_seqs: batch.unmasked_seqs,
+                self._masked_seqs: batch.masked_seqs,
+                self._padding: padding,
+                self._target_positions: batch.target_positions,
+                self._targets: batch.targets}
+        return sess.run([self.target_token_probs, self.target_sense_probs],
+                        feed_dict=feed_dict)
 
     def _add_get_mean_q(self):
         self._mean_q_tokens = tf.placeholder(tf.int32, [None])
@@ -688,6 +702,9 @@ class PolyLM(object):
 
     def contextualize(self, sess, batch):
         return self._default_model.contextualize(sess, batch)
+
+    def get_target_probs(self, sess, batch):
+        return self._default_model.get_target_probs(sess, batch)
 
     def match(self, sess, keys, values):
         return self._default_model.match(sess, keys, values)
