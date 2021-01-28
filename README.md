@@ -1,5 +1,7 @@
 # PolyLM - Neural Word Sense Model
 
+Repository for the EACL 2021 paper [PolyLM: Learning about Polysemy through Language Modeling](https://arxiv.org/abs/2101.10448) by Alan Ansell, Felipe Bravo-Marquez and Bernhard Pfahringer.
+
 ## Setup
 Recommended environment is Python >= 3.7 and TensorFlow 1.15, although earlier versions of TensorFlow 1 may also work.
 
