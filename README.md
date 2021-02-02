@@ -67,7 +67,7 @@ The following command can be used to train a model with the same parameters as P
 Notes:
  * Tokens appearing at least `max_occurrences_for_polysemy` times in the corpus will be allocated `max_senses_per_word` senses; all other tokens will be allocated a single sense. If you wish to allocate a custom number of senses per token, you may createa file where each line is of the form `<token> <n_senses>` and pass it as the value of command line parameter `--n_senses_file`. Note that the `--max_senses_per_word` parameter must still be supplied.
  * To train on multiple GPUs, pass them as a comma-separated string, e.g. `--gpus=0,1`. Note that `--batch_size` is per-GPU, so to train with a total batch size of 32 on 2 GPUs, you should set `--batch_size=16`.
- * You may optionally supply a `--test_words` argument to specify a number of words for which to print nearest-neighbour senses during training. For instance, setting `--test_words="bank, rock, bar"` and `--test_every=1000` would cause nearest-neighbour senses for all senses of words "bank", "rock" and "bar" to be printed each 1,000 batches. This can be useful for ensuring that training is proceeding as intended.
+ * You may optionally supply a `--test_words` argument to specify a number of words for which to print nearest-neighbour senses during training. For instance, setting `--test_words="bank rock bar"` and `--test_every=1000` would cause nearest-neighbour senses for all senses of words "bank", "rock" and "bar" to be printed each 1,000 batches. This can be useful for ensuring that training is proceeding as intended.
 
 
 ## Word Sense Induction
